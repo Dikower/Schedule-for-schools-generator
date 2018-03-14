@@ -3,9 +3,11 @@ import json
 import easygui
 import re
 import xlsxwriter
+import copy
+import os
 
 
-def generator(classes_inp, hours, day):
+def generator(classes_inp, hours, cabinets, day_name):
     # inp = {"1": ["Алгебра", "Русский", "Алгебра"], "2": ["Алгебра", "Литература", "Русский"],
     #        "3": ["Литература", "Русский"], "4": ["Музыка", "Физра", "Английский", "Алгебра", "Русский", "Литература"]}
 
@@ -89,21 +91,46 @@ def generator(classes_inp, hours, day):
 
         time += 1
 
-    current_hours = hours.copy()
+    current_hours = copy.deepcopy(hours)
     to_write = {}
-    print(sorted_lessons)
     for one_class in sorted_lessons.keys():
         for teacher in sorted_lessons[one_class]:
             if teacher != "":
                 for subject in current_hours[one_class]:
                     if classes_inp[one_class][subject] == teacher and current_hours[one_class][subject] > 0:
-                        to_write[one_class] = to_write.get(one_class, []) + [subject]
+                        to_write[one_class] = to_write.get(one_class, []) + [subject + " " + cabinets[teacher]]
                         current_hours[one_class][subject] -= 1
             else:
                 to_write[one_class] = to_write.get(one_class, []) + [""]
+
     # print(to_write)
     # for i in to_write:
     #     print(to_write[i])
+    keys = sorted(list(to_write.keys()), key=lambda x: (int(x[:-1]), x[-1]))
+    try:
+        workbook = xlsxwriter.Workbook(day_name+".xlsx")
+    except:
+        os.remove(day_name+".xlsx")
+        workbook = xlsxwriter.Workbook(day_name+".xlsx")
+
+    worksheet = workbook.add_worksheet()
+    worksheet.write(0, 0, day_name)
+    try:
+        max_lenght = len(max(to_write.values(), key=len))
+    except ValueError:
+        max_lenght = 0
+    # print(max_lenght)
+    # print(keys)
+    string = 0
+    col = 0
+    for one_class in range(len(keys)):
+        worksheet.write(string * max_lenght + 1, one_class, keys[one_class])
+        objects = to_write[keys[one_class]]
+        # print(objects)
+        for object in range(1, len(objects) + 1):
+            worksheet.write(string * max_lenght + 1 + object, one_class, objects[object-1])
+
+    workbook.close()
 
 
 def load_base():
@@ -121,10 +148,10 @@ def load_base():
 
 def load_cabinets():
     try:
-        with open("cabinet.json", "r", encoding="utf8") as json_file:
+        with open("cabinets.json", "r", encoding="utf8") as json_file:
             cabinet = json.loads(json_file.read().strip("\n"))
     except FileNotFoundError:
-        with open("cabinet.json", "w", encoding="utf8") as json_file:
+        with open("cabinets.json", "w", encoding="utf8") as json_file:
             json_file.write("{}")
         cabinet = {}
     finally:
@@ -146,7 +173,7 @@ def load_classes():
 def start_screen():
     title = "Мененджер расписаний"
     msg = "Выберите режим работы. Если вы первый раз запустили данную программу, выберите сначала кнопку Классы."
-    choices = ["Классы", "Дни", "Руководство(Обязательно к прочтению!)"]
+    choices = ["Классы", "Дни", "Выбрать кабинеты для учителей.", "Руководство(Обязательно к прочтению!)"]
     choice = easygui.buttonbox(msg, title=title, choices=choices)
     if choice is None:
         sys.exit(0)
@@ -155,7 +182,7 @@ def start_screen():
 
 def week_screen():
     title = "Мененджер расписаний"
-    msg = "Выберите день недели. В котором хотите задать количество часов для классов по определенным предметам."
+    msg = "Выберите день недели, в котором хотите задать количество часов для классов по определенным предметам."
     choices = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"]
     choice = easygui.choicebox(msg, title, choices)
     return choice
@@ -220,10 +247,10 @@ def add_teachers(objects, curr):
         return {field_names[i]: field_values[i] for i in range(len(field_names))}
 
 
-def edit_class():
+def edit_class(curr, class_name):
     title = "Мененджер расписаний"
     msg = "Выберите, что хотите сделать."
-    choices = ["Выбрать предметы", "Удалить", "Cancel"]
+    choices = ["Поменять учителей", "Удалить", "Cancel"]
     choice = easygui.buttonbox(msg, title=title, choices=choices)
     if choice is None:
         sys.exit(0)
@@ -232,7 +259,7 @@ def edit_class():
 
 def edit_day(classes):
     title = "Мененджер расписаний"
-    msg = "Если вы уже назначили во всех классах количество часов, можно сгенерировать расписание.\nЕсли нет, то выберите класс и назначте предметы."
+    msg = "Если вы уже назначили во всех классах количество часов, можно сгенерировать расписание.\nЕсли нет, то выберите класс и назначте предметы.\nЕсли вы не назначите часы для класса, то он не будет учитываться при генерации."
     choices = list(classes.keys())
     if len(choices) > 0:
         choices.insert(0, "Сгенерировать расписание.")
@@ -270,9 +297,33 @@ def make_hours(objects, curr):
     return {field_names[i]: field_values[i] for i in range(len(field_values))}
 
 
+def make_cabinets(classes):
+    teachers = []
+    for key in classes.keys():
+        for teacher in classes[key].values():
+            if teacher not in teachers:
+                teachers.append(teacher)
+    title = "Мененджер расписаний"
+    msg = "Впишите номера кабинетов, закрепленных за учителями."
+    field_names = sorted(teachers)
+    field_values = []  # we start with blanks for the values
+    field_values = easygui.multenterbox(msg, title, field_names)
+    if field_values is None:
+        return None
+    return {field_names[i]: field_values[i] for i in range(len(field_values))}
+
+
+def lessons_view_screen(curr, class_name):
+    title = "Мененджер расписаний"
+    msg = class_name
+    easygui.textbox(msg, title, "\n".join([i+": "+curr[i] for i in curr.keys()]))
+
+
 def interface():
     week = load_base()
     classes = load_classes()
+    cabinets = load_cabinets()
+
     while True:
         mode = start_screen()
         if mode == "Дни":
@@ -286,9 +337,10 @@ def interface():
                         if do is None or do == "Сначала нужно создать классы." or do == "":
                             break
                         elif do == "Сгенерировать расписание.":
-                            generator(classes, week[day_name], day_name)
+                            generator(classes, week[day_name], cabinets, day_name)
                             msg = "Готово, расписание сохранено под именем {}.xlsx".format(day_name)
                             easygui.msgbox(msg, title="Готово!")
+                            break
                         else:
                             while True:
                                 objects = choose_objects(classes, do)
@@ -321,21 +373,33 @@ def interface():
                                     objects_with_teachers = add_teachers(objects, n_class)
                                     if objects_with_teachers is None:
                                         break
-                                    else:
-                                        classes[n_class] = objects_with_teachers
-                                        break
+                                    classes[n_class] = objects_with_teachers
+                                    break
                                 break
                 else:
-                    changer = edit_class()
+                    changer = edit_class(classes[classes_mode], classes_mode)
                     if changer == "Cancel":
                         continue
-                    elif changer == "Выбрать предметы":
-                                objects = add_objects(classes_mode)
-                                objects_with_teachers = add_teachers(objects, classes_mode)
-                                classes[classes_mode] = objects_with_teachers
-                                # break
+                    elif changer == "Поменять учителей":
+                        objects_with_teachers = add_teachers(list(classes[classes_mode].keys()), classes_mode)
+                        if objects_with_teachers is not None:
+                            classes[classes_mode] = objects_with_teachers
+                            continue
+                        else:
+                            break
+
                     elif changer == "Удалить":
                         classes.pop(classes_mode)
+                        for d in week.keys():
+                            if classes_mode in week[d].keys():
+                                week[d].pop(classes_mode)
+        elif mode == "Выбрать кабинеты для учителей." and len(classes.values()) != 0:
+            try_cabinets = make_cabinets(classes)
+            if try_cabinets is not None:
+                cabinets = try_cabinets
+        elif len(classes.values()) == 0 and mode == "Выбрать кабинеты для учителей.":
+            easygui.msgbox("Создайте сначала класс и распределите учителей по предметам, нажав на кнопку Классы.")
+
         elif mode == "Руководство(Обязательно к прочтению!)":
             easygui.msgbox("Кнопка класс перенесет вас в раздел создания и редактирования класса, если хотите поменять список предметов у выбранного класса, выберите класс и нажмите OK. В любом разделе кнопка Cancel вернет вас в предыдущий раздел.")
 
@@ -345,5 +409,9 @@ def interface():
         with open("classes.json", "w", encoding="utf8") as classes_file:
             classes_file.write(re.sub("'", '"', str(classes)))
 
+        with open("cabinets.json", "w", encoding="utf8") as cabinets_file:
+            cabinets_file.write(re.sub("'", '"', str(cabinets)))
 
-interface()
+
+if __name__ == '__main__':
+    interface()
