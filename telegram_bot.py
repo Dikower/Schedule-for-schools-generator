@@ -45,14 +45,15 @@ markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=False)
 
 
 def start(bot, update):
-    update.message.reply_text('Я бот, выдающий расписания.\nДля начала введи "/Поменять_класс XX". Вместо XX - твой класс.',
+    update.message.reply_text('Я бот, выдающий расписания.\nДля начала нужно выбрать класс при помощи команды\n/Выбрать_класс XX\nВместо XX - нужный класс.',
                               reply_markup=markup)
 
 
-def helper(bot, update):
+def helper(bot, update, chat_data):
     update.message.reply_text(
-        'В мой функционал входят три основные команды: выдать расписание на сегодня, либо на завтра и показать время. Также есть возможность поменять класс, чтобы узнавать расписание для выбранного класса.\nДля этого введи "/Поменять_класс XX". Вместо XX - свой класс.')
-
+        'В мой функционал входят три основные команды: выдать расписание на сегодня, либо на завтра и показать время. Также есть возможность выбрать класс (если вы еще не выбрали класс, необходимо это сделать), чтобы узнавать расписание для данного класса.\nДля этого нужно ввести \n /Выбрать_класс XX \nВместо XX - нужный класс.')
+    if 'class' in chat_data:
+        update.message.reply_text('Сейчас выбран {} класс.'.format(chat_data['class']))
 
 def give_time(bot, update):
     update.message.reply_text(time.asctime().split()[-2])
@@ -67,21 +68,22 @@ def give_scheudle_today(bot, update, chat_data):
             week = {"Sunday": "Воскресенье", "Monday": "Понедельник", "Tuesday": "Вторник", "Wednesday": "Среда", "Thursday": "Четверг", "Friday": "Пятница", "Saturday": "Суббота"}
             if week[day] in scheudle:
                 if chat_data['class'] in scheudle[week[day]]:
-                    print(True)
-
-                    update.message.reply_text("Рассписание на сегодня ({0}) для {1} класса.".format(week[day], chat_data['class']))
+                    update.message.reply_text("Расписание на сегодня ({0}) для {1} класса.".format(week[day], chat_data['class']))
                     for num, obj in enumerate(scheudle[week[day]][chat_data['class']]):
-                        update.message.reply_text(str(num+1)+'. ' + obj)
+                        if obj != '':
+                            update.message.reply_text(str(num+1)+'. ' + obj)
+                        else:
+                            update.message.reply_text(str(num + 1) + '. ' + 'Нет урока')
                 else:
-                    update.message.reply_text("Рассписание на сегодня ({0}) для {1} класса отсутствует.".format(week[day], chat_data['class']))
+                    update.message.reply_text("Расписание на сегодня ({0}) для {1} класса отсутствует.".format(week[day], chat_data['class']))
             else:
-                update.message.reply_text("Рассписание на сегодня ({}) отсутствует.".format(week[day]))
+                update.message.reply_text("Расписание на сегодня ({}) отсутствует.".format(week[day]))
 
         except FileNotFoundError:
             update.message.reply_text("Расписание отсутствует.")
 
     else:
-        update.message.reply_text('Cначала нужно добавить себя в класс. Пример правильного ввода:\n/Поменять_класс 1А\n(буква кириллицей).')
+        update.message.reply_text('Cначала нужно выбрать класс. Пример правильного ввода:\n/Выбрать_класс 1А\n(буква кириллицей).')
 
 
 def give_scheudle_tomorrow(bot, update, chat_data):
@@ -107,11 +109,11 @@ def give_scheudle_tomorrow(bot, update, chat_data):
                     update.message.reply_text(
                         "Рассписание на завтра ({0}) для {1} класса.".format(week[day], chat_data['class']))
                     for num, obj in enumerate(scheudle[week[day]][chat_data['class']]):
-                        update.message.reply_text(str(num + 1) + '. ' + obj)
+                        if obj != '':
+                            update.message.reply_text(str(num+1)+'. ' + obj)
+                        else:
+                            update.message.reply_text(str(num + 1) + '. ' + 'Нет урока')
                 else:
-                    print(chat_data['class'], scheudle[week[day]])
-                    print(chat_data['class'] in scheudle[week[day]])
-
                     update.message.reply_text(
                         "Рассписание на завтра ({0}) для {1} класса отсутствует.".format(week[day],
                                                                                           chat_data['class']))
@@ -122,7 +124,7 @@ def give_scheudle_tomorrow(bot, update, chat_data):
             update.message.reply_text("Расписание отсутствует.")
 
     else:
-        update.message.reply_text('Сначала нужно добавить себя в класс. Для этого введи: \n/Поменять_класс XX. Вместо XX - твой класс.')
+        update.message.reply_text('Сначала нужно выбрать класс. Нужно вводить по шаблону: \n/Выбрать_класс XX\nВместо XX - нужный класс.')
 
 
 def close_keyboard(bot, update):
@@ -132,16 +134,25 @@ def close_keyboard(bot, update):
 def change_class(bot, update, args, chat_data):
     if len(args[0]) >= 2:
         if args[0][:-1].isdigit() and ord(args[0][-1]) in range(ord('А'), ord('я')+1):
-            chat_data['class'] = args[0].strip()
-            update.message.reply_text('Теперь ты в {} классе.'.format(args[0]))
-            print(chat_data)
+            chat_data['class'] = args[0][:-1] + args[0][-1].upper()
+            update.message.reply_text('Теперь выбран {} класс.'.format(args[0]))
+            try:
+                with open('scheudle.json', encoding="utf8") as file:
+                    scheudle = json.loads(file.read().strip('\n'))
+                classes = []
+                for day in [scheudle[i].keys() for i in scheudle.keys()]:
+                    classes += day
+                if chat_data['class'] not in classes:
+                    update.message.reply_text('Расписание для {} класса отсутствует на всю неделю.'.format(chat_data['class']))
+            except:
+                update.message.reply_text('Расписание для всех классов отсутствует на всю неделю.')
         else:
             update.message.reply_text(
-                'Неправильно введен класс! Пример правильного ввода:\n/Поменять_класс 1А\n(буква кириллицей).')
+                'Неправильно введен класс! Пример правильного ввода:\n/Выбрать_класс 1А\n(буква кириллицей).')
 
     else:
         update.message.reply_text(
-            'Неправильно введен класс! Пример правильного ввода:\n/Поменять_класс 1А\n(буква кириллицей).')
+            'Неправильно введен класс! Пример правильного ввода:\n/Выбрать_класс 1А\n(буква кириллицей).')
 
 
 def Telegram_bot():
@@ -153,14 +164,14 @@ def Telegram_bot():
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("Время", give_time))
     dp.add_handler(CommandHandler("Закрыть_клавиатуру", close_keyboard))
-    dp.add_handler(CommandHandler("Помощь", helper))
+    dp.add_handler(CommandHandler("Помощь", helper, pass_chat_data=True))
     dp.add_handler(CommandHandler("Расписание_на_завтра", give_scheudle_tomorrow, pass_chat_data=True))
     dp.add_handler(CommandHandler("Расписание_на_сегодня", give_scheudle_today, pass_chat_data=True))
-    dp.add_handler(CommandHandler("Поменять_класс", change_class, pass_chat_data=True, pass_args=True))
-
+    dp.add_handler(CommandHandler("Выбрать_класс", change_class, pass_chat_data=True, pass_args=True))
 
     updater.start_polling()
     updater.idle()
+
 
 if __name__ == '__main__':
     Telegram_bot()
