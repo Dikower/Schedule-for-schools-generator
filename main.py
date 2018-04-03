@@ -1,10 +1,60 @@
 import sys
-import json
-import easygui
-import re
-import xlsxwriter
-import copy
 import os
+try:
+    import time
+except:
+    try:
+        os.system("pip install time")
+        import time
+    except:
+        print("Не удалось установить time.")
+
+try:
+    import re
+except:
+    try:
+        os.system("pip install re")
+        import re
+    except:
+        print("Не удалось установить re.")
+
+try:
+    import json
+except:
+    try:
+        os.system("pip install json")
+        import json
+    except:
+        print("Не удалось установить json.")
+
+try:
+    import copy
+except:
+    try:
+        os.system("pip install copy")
+        import copy
+    except:
+        print("Не удалось установить copy.")
+
+try:
+    import easygui
+except:
+    try:
+        os.system("pip install easygui")
+        time.sleep(5)
+        import easygui
+    except:
+        print("Не удалось установить easygui.")
+
+try:
+    import xlsxwriter
+except:
+    try:
+        os.system("pip install xlsxwriter")
+        time.sleep(5)
+        import xlsxwriter
+    except:
+       print("Не удалось установить xlsxwriter.")
 
 
 def generator(classes_inp, hours, cabinets, day_name):
@@ -103,7 +153,17 @@ def generator(classes_inp, hours, cabinets, day_name):
             else:
                 to_write[one_class] = to_write.get(one_class, []) + [""]
 
-    # print(to_write)
+    try:
+        with open("scheudle.json", encoding="utf8") as file:
+            scheudle = json.loads(file.read().strip("\n"))
+    except FileNotFoundError:
+        with open("scheudle.json", "w", encoding="utf8") as file:
+            file.write("{}")
+            scheudle = {}
+
+    scheudle[day_name] = to_write
+    with open("scheudle.json", "w", encoding="utf8") as file:
+        file.write(re.sub("'", '"', str(scheudle)))
     # for i in to_write:
     #     print(to_write[i])
     keys = sorted(list(to_write.keys()), key=lambda x: (int(x[:-1]), x[-1]))
@@ -411,7 +471,6 @@ def interface():
 
         with open("cabinets.json", "w", encoding="utf8") as cabinets_file:
             cabinets_file.write(re.sub("'", '"', str(cabinets)))
-
 
 if __name__ == '__main__':
     interface()
