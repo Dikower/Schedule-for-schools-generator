@@ -41,7 +41,6 @@ try:
 except:
     try:
         os.system("pip install easygui")
-        time.sleep(5)
         import easygui
     except:
         print("Не удалось установить easygui.")
@@ -51,7 +50,6 @@ try:
 except:
     try:
         os.system("pip install xlsxwriter")
-        time.sleep(5)
         import xlsxwriter
     except:
        print("Не удалось установить xlsxwriter.")
@@ -284,8 +282,9 @@ def new_class():
         finally:
             test = len(field_values[1])
             if test != 1 or not field_values[1].isalpha():
-                errors.append("Нужно ввести одну букву! (без кавычек)")
-
+                errors.append("Нужно ввести одну букву! (без кавычек, кириллицей)")
+                if not ord(field_values[1]) in range(ord('А'), ord('я') + 1):
+                    errors.append("Буква должна быть кириллической.")
         if len(errors) == 0:
             break
         easygui.msgbox('\n'.join(errors))
