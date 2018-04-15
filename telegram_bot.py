@@ -156,7 +156,7 @@ def change_class(bot, update, args, chat_data):
 
 
 def Telegram_bot():
-    updater = Updater("598818758:AAFKUTQ2CwW7RJsWqHFF2nKUnsDsl5bgrgo")
+    updater = Updater("")
 
     dp = updater.dispatcher
 
