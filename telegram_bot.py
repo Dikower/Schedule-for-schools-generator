@@ -156,7 +156,9 @@ def change_class(bot, update, args, chat_data):
 
 
 def Telegram_bot():
-    updater = Updater("")
+    token = ''  # Берется у Bot-Father
+    request_kwargs = {'proxy_url': 'https://192.116.142.153:8080'}  # Прокси из-за блокировки
+    updater = Updater(token, request_kwargs=request_kwargs)
 
     dp = updater.dispatcher
 
